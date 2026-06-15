@@ -1,0 +1,16 @@
+state: utils.state.State
+llm: utils.llm_call.llm
+
+nodes:
+  generate_content:
+    function: functions.node_functions.generate_content
+  critique_content:
+    function: functions.node_functions.critique_content
+
+edges:
+  - from: START
+    to: generate_content
+  - from: generate_content
+    to: critique_content
+  - from: critique_content
+    to: END
