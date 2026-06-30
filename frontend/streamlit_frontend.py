@@ -51,13 +51,18 @@ if topic:
 
 	assistant_placeholder = st.chat_message("assistant")
 	streamed_text = []
+	served_from_cache = False
 
 	with assistant_placeholder:
+		cache_box = st.empty()
 		output_box = st.empty()
 		try:
 			for update in stream_generate(topic):
 				for node_output in update.values():
 					if isinstance(node_output, dict):
+						if node_output.get("content_cached") or node_output.get("critique_cached"):
+							served_from_cache = True
+							cache_box.info("⚡ Served from cache")
 						chunk = node_output.get("content") or node_output.get("critique") or ""
 						if chunk:
 							streamed_text.append(chunk)
@@ -68,4 +73,7 @@ if topic:
 
 	final_text = "".join(streamed_text).strip()
 	if final_text:
-		st.session_state.messages.append({"role": "assistant", "content": final_text})
+		content = final_text
+		if served_from_cache:
+			content = "⚡ *Served from cache*\n\n" + content
+		st.session_state.messages.append({"role": "assistant", "content": content})
