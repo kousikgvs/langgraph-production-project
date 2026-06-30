@@ -7,4 +7,7 @@ venv/
 __pycache__/
 *.pyc
 __pycache__
-*.pyo  
+*.pyo
+
+# Kubernetes secret manifests (avoid committing real credentials)
+k8-deployment/*-secret.yaml  
