@@ -1,0 +1,15 @@
+# Default StorageClass for EKS Auto Mode.
+# EKS Auto Mode ships no default StorageClass, so PVCs (like redis-data) stay
+# Pending until one exists. This uses the Auto Mode EBS provisioner.
+# NOTE: a StorageClass is a cluster-scoped resource (no namespace).
+apiVersion: storage.k8s.io/v1
+kind: StorageClass
+metadata:
+  name: auto-ebs
+  annotations:
+    storageclass.kubernetes.io/is-default-class: "true"
+provisioner: ebs.csi.eks.amazonaws.com
+volumeBindingMode: WaitForFirstConsumer
+parameters:
+  type: gp3
+  encrypted: "true"
