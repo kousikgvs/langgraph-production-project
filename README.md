@@ -51,7 +51,9 @@ CONTAINER ID   IMAGE                        COMMAND                  PORTS      
 ### Frontend image
 The locally built image already has a name, so tag it directly:
 ```bash
-docker tag docker-deployment-frontend my-frontend:v1
+docker tag redis:7-alpine redis:v1
+docker tag langgraph-production-project-backend langgraph-production-project-backend:v1
+docker tag langgraph-production-project-frontend langgraph-production-project-frontend:v1
 ```
 
 ### Redis image
@@ -100,17 +102,17 @@ docker login
 ### Re-tag with your Docker Hub username
 Replace `<dockerhub-username>` with yours (e.g. `kousikgvs`):
 ```bash
-docker tag my-frontend:v1 <dockerhub-username>/my-frontend:v1
-docker tag my-redis:v1 <dockerhub-username>/my-redis:7.4
+$DOCKER_USERNAME = "kousikgvs"
+docker tag langgraph-production-project-frontend:v1 $DOCKER_USERNAME/frontend:v1
+docker tag redis:v1 $DOCKER_USERNAME/redis:v1
+docker tag langgraph-production-project-backend:v1 $DOCKER_USERNAME/backend:v1
 ```
 
 ### Push
 ```bash
-docker push <dockerhub-username>/my-frontend:v1
-docker push <dockerhub-username>/my-redis:7.4
-
-docker push kousikgvs/my-frontend:v1
-docker push kousikgvs/my-redis:7.4
+docker push $DOCKER_USERNAME/backend:v1
+docker push $DOCKER_USERNAME/redis:v1
+docker push $DOCKER_USERNAME/frontend:v1
 ```
 
 ### Verify
@@ -134,16 +136,18 @@ AWS Elastic Container Registry (ECR) is a private Docker registry hosted on AWS.
 
 Set these once per shell to avoid repetition:
 ```powershell
-$AWS_REGION  = "ap-south-2"
 # $AWS_ACCOUNT = (aws sts get-caller-identity --query Account --output text)
+$AWS_REGION  = "ap-south-2"
 $AWS_ACCOUNT = 932566365205
-# $ECR_REGISTRY = "$AWS_ACCOUNT.dkr.ecr.$AWS_REGION.amazonaws.com"
-$ECR_REGISTRY = "932566365205.dkr.ecr.ap-south-2.amazonaws.com"
+$ECR_REPOSITORY = "kousikgvs"
+$ECR_REGISTRY = "$AWS_ACCOUNT.dkr.ecr.$AWS_REGION.amazonaws.com"
+# $ECR_REGISTRY = "932566365205.dkr.ecr.ap-south-2.amazonaws.com/kousikgvs"
 ```
 
 ### Create the repositories (one-time)
 ```bash
-aws ecr create-repository --repository-name my-frontend --region $AWS_REGION
+aws ecr create-repository --repository-name frontend --region $AWS_REGION
+aws ecr create-repository --repository-name backend --region $AWS_REGION
 aws ecr create-repository --repository-name redis --region $AWS_REGION
 ```
 
@@ -156,27 +160,30 @@ aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --
 ### Re-tag local images for ECR
 ECR images must be named `<account>.dkr.ecr.<region>.amazonaws.com/<repo>:<tag>`:
 ```bash
-docker tag kousikgvs/my-frontend:v1 $ECR_REGISTRY/my-frontend:v1
-docker tag kousikgvs/redis:v1 $ECR_REGISTRY/redis:v1
+docker tag $DOCKER_USERNAME/frontend:v1 $ECR_REGISTRY/frontend:v1
+docker tag $DOCKER_USERNAME/redis:v1 $ECR_REGISTRY/redis:v1
+docker tag $DOCKER_USERNAME/backend:v1 $ECR_REGISTRY/backend:v1
 ```
 
 ### Push
 ```bash
-docker push $ECR_REGISTRY/my-frontend:v1
+docker push $ECR_REGISTRY/frontend:v1
 docker push $ECR_REGISTRY/redis:v1
+docker push $ECR_REGISTRY/backend:v1
 ```
 
 ### Verify
 ```bash
-aws ecr list-images --repository-name my-frontend --region $AWS_REGION
+aws ecr list-images --repository-name frontend --region $AWS_REGION
 aws ecr list-images --repository-name redis    --region $AWS_REGION
+aws ecr list-images --repository-name backend    --region $AWS_REGION
 ```
 Or check the AWS Console → **ECR → Repositories**.
 
 ### Pull from ECR (on any machine with AWS creds)
 ```bash
 aws ecr get-login-password --region $AWS_REGION | docker login --username AWS --password-stdin $ECR_REGISTRY
-docker pull $ECR_REGISTRY/my-frontend:v1
+docker pull $ECR_REGISTRY/frontend:v1
 ```
 
 > **Required IAM permissions:** `ecr:CreateRepository`, `ecr:GetAuthorizationToken`, `ecr:BatchCheckLayerAvailability`, `ecr:InitiateLayerUpload`, `ecr:UploadLayerPart`, `ecr:CompleteLayerUpload`, `ecr:PutImage`. The managed policy `AmazonEC2ContainerRegistryFullAccess` covers all of these.
@@ -192,28 +199,6 @@ Think of the tools like this:
 - Helm installs and upgrades the platform components.
 - kubectl operates and debugs the running cluster.
 
-Amazon EKS is the Kubernetes cluster where all of this runs.
-
-This README focuses on the easiest useful path for a first deployment:
-
-1. Create an EKS cluster.
-2. Install cert-manager and KServe with Helm.
-3. Put a trained model in Amazon S3.
-4. Give KServe permission to read the model from S3.
-5. Deploy a KServe InferenceService.
-6. Test the prediction API.
-7. Use Helm and kubectl for upgrades and debugging.
-
-For the first deployment, this guide uses KServe's built-in scikit-learn runtime. That means you do not need to build a custom Docker image or push anything to Amazon ECR just to get started.
-
-## What Each Tool Does
-
-- Kubeflow is the workflow layer. Use it for notebooks, pipelines, experiments, and training workflows.
-- KServe is the online serving layer. It runs the model behind an HTTP prediction endpoint.
-- Helm installs cluster software such as cert-manager and KServe, and upgrades those platform components later.
-- kubectl is the daily operations tool. Use it to apply YAML, check pods, view logs, and inspect errors.
-
-If you only want to serve one model first, start with KServe. Add Kubeflow after the serving path works.
 
 ## Target Architecture
 
