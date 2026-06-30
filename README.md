@@ -190,38 +190,40 @@ docker pull $ECR_REGISTRY/frontend:v1
 
 Now Creating the Kubernetes Infra for Loadbalancing auto Pod startup.
 
-This guide explains the EKS deployment path in simple beginner language.
+This guide explains the EKS deployment path for this application in simple beginner language.
+
+The app has three tiers, mirroring `docker-compose.yml` and the images pushed to ECR above:
+
+- `frontend` serves the Streamlit UI and is exposed publicly through a LoadBalancer.
+- `backend` runs the FastAPI service and talks to Redis for caching.
+- `redis` is the in-cluster cache used by the backend.
 
 Think of the tools like this:
 
-- Kubeflow manages the ML workflow.
-- KServe serves the model.
-- Helm installs and upgrades the platform components.
-- kubectl operates and debugs the running cluster.
+- eksctl creates the EKS cluster and worker nodes.
+- kubectl applies the manifests and operates/debugs the running cluster.
+- Helm is optional here (only needed if you later add cluster add-ons).
 
 
 ## Target Architecture
 
 ```text
-Kubeflow pipeline or external training job -> model artifact in Amazon S3
-                                                |
-                                                v
-                                         KServe InferenceService on EKS
-                                                |
-                                                v
-                                           Prediction API
+Internet
+   |
+   v
+LoadBalancer Service  ->  frontend (Streamlit)  ->  backend (FastAPI)  ->  redis (cache)
+                              :8501                    :8000                 :6379
 ```
 
 ## Prerequisites
 
 Install these tools first:
 
-- AWS account with permission to create EKS, IAM, S3, and EC2 resources
+- AWS account with permission to create EKS, IAM, and EC2 resources
 - AWS CLI v2
 - eksctl
 - kubectl
-- Helm 3
-- A trained model file such as `model.joblib`
+- The `frontend`, `backend`, and `redis` images pushed to ECR (see the ECR section above)
 
 On Windows, you can install them with `winget`:
 
@@ -229,10 +231,7 @@ On Windows, you can install them with `winget`:
 winget install -e --id Amazon.AWSCLI --accept-source-agreements --accept-package-agreements
 winget install -e --id eksctl.eksctl --accept-source-agreements --accept-package-agreements
 winget install -e --id Kubernetes.kubectl --accept-source-agreements --accept-package-agreements
-winget install -e --id Helm.Helm --version 3.20.0 --accept-source-agreements --accept-package-agreements
 ```
-
-This guide assumes Helm 3. If you already installed Helm 4, replace it with a Helm 3 release before continuing.
 
 Verify the tools:
 
@@ -240,7 +239,6 @@ Verify the tools:
 aws --version
 eksctl version
 kubectl version --client
-helm version
 ```
 
 Configure AWS credentials:
@@ -257,7 +255,20 @@ NodeIAMRole: EC2
 
 ClusterIAMRole: AmazonEKSClusterPolicy
 
-NodeIAMRole: AmazonEKSWorkerNodePolicy, AmazonEC2ContainerRegistryPullOnly, AmazonEKS_CNI_Policy
+NodeIAMRole: 
+
+AmazonEKSWorkerNodePolicy, AmazonEC2ContainerRegistryPullOnly, 
+AmazonEKS_CNI_Policy
+
+ClusterIAMRole: 
+
+AmazonEKSBlockStoragePolicy
+AmazonEKSBlockStoragePolicyV2
+AmazonEKSClusterPolicy
+AmazonEKSComputePolicy
+AmazonEKSLoadBalancingPolicy
+AmazonEKSNetworkingPolicy
+
 
 Example admin access flow:
 
@@ -424,3 +435,53 @@ Example: view the system pods that EKS created:
 ```powershell
 kubectl get pods -n kube-system
 ```
+
+## Deploy this Application to the Cluster
+
+The Kubernetes manifests live in the `k8-deployment/` folder:
+
+- `00-namespace.yaml` — the `langgraph-app` namespace
+- `02-redis.yaml` — Redis Deployment, PVC, and ClusterIP Service
+- `03-backend.yaml` — FastAPI Deployment and Service (reads `REDIS_URL`)
+- `04-frontend.yaml` — Streamlit Deployment and LoadBalancer Service (reads `BACKEND_URL`)
+- `01-backend-secret.example.yaml` — template for the `GROQ_API_KEY` secret
+
+1) Point the manifests at your ECR images
+
+In `03-backend.yaml` and `04-frontend.yaml`, set the `image:` to the repos you pushed earlier, for example `$ECR_REGISTRY/backend:v1` and `$ECR_REGISTRY/frontend:v1`.
+
+2) Create the namespace and the backend secret from your gitignored `.env`
+
+```powershell
+kubectl apply -f k8-deployment/00-namespace.yaml
+kubectl -n langgraph-app create secret generic backend-secrets --from-env-file=.env
+```
+
+3) Apply all manifests
+
+```powershell
+kubectl apply -k k8-deployment
+```
+
+4) Verify the rollout
+
+```powershell
+kubectl rollout status deployment/backend -n langgraph-app
+kubectl rollout status deployment/frontend -n langgraph-app
+kubectl get pods -n langgraph-app -o wide
+```
+
+5) Get the public URL of the frontend
+
+```powershell
+kubectl get svc frontend -n langgraph-app -w
+```
+
+When `EXTERNAL-IP` changes from `<pending>` to a hostname, open it in a browser to reach the Streamlit UI.
+
+### Troubleshooting
+
+- `ImagePullBackOff`: the `image:` does not match a repo/tag in ECR, or the nodes lack pull permission. Confirm the image exists (`aws ecr list-images --repository-name backend --region $AWS_REGION`) and that the node IAM role has `AmazonEC2ContainerRegistryPullOnly` (or `...ReadOnly`).
+- Backend cannot reach Redis: check `kubectl logs deploy/backend -n langgraph-app`; the `REDIS_URL` must be `redis://redis:6379/0` so it resolves the `redis` Service.
+- Frontend cannot reach backend: confirm `BACKEND_URL=http://backend:8000` and that the `backend` Service has endpoints (`kubectl get endpoints backend -n langgraph-app`).
+- `EXTERNAL-IP` stays `<pending>`: verify the EKS VPC subnets are tagged `kubernetes.io/role/elb = 1` for a public LoadBalancer, then `kubectl describe svc frontend -n langgraph-app`.
