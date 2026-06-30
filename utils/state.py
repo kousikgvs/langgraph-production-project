@@ -6,3 +6,5 @@ class State(TypedDict):
     topic: str
     content: str
     critique: str
+    content_cached: bool
+    critique_cached: bool
