@@ -5,9 +5,10 @@ Streamlit Deployment Commands (EKS + ECR)
 $AWS_REGION = "ap-south-2"
 $AWS_ACCOUNT_ID = "932566365205"
 $CLUSTER_NAME = "kousik_cluster"
-$ECR_REPO_NAME = "streamlit_repo"
+$ECR_REPO_NAME = "langgraph-project"
 $IMAGE_TAG = "v1"
 $IMAGE_URI = "${AWS_ACCOUNT_ID}.dkr.ecr.${AWS_REGION}.amazonaws.com/${ECR_REPO_NAME}:${IMAGE_TAG}"
+$DOCKER_USERNAME = "kousikgvs"
 
 2) Verify AWS identity and cluster access
 
