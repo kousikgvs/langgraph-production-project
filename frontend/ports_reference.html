@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Port Reference — Frontend, Backend &amp; Redis</title>
+  <style>
+    :root {
+      --frontend: #e11d48;
+      --backend: #2563eb;
+      --redis: #d97706;
+      --bg: #0f172a;
+      --card: #1e293b;
+      --text: #e2e8f0;
+      --muted: #94a3b8;
+      --border: #334155;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      line-height: 1.6;
+      padding: 2rem 1rem 4rem;
+    }
+    .wrap { max-width: 960px; margin: 0 auto; }
+    h1 { font-size: 1.9rem; margin-bottom: 0.25rem; }
+    .sub { color: var(--muted); margin-top: 0; }
+    h2 { margin-top: 2.5rem; border-bottom: 1px solid var(--border); padding-bottom: 0.4rem; }
+    code {
+      background: #0b1220;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      font-family: "Cascadia Code", Consolas, monospace;
+      font-size: 0.9em;
+      color: #cbd5e1;
+    }
+    .cards { display: grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 1rem; margin-top: 1.5rem; }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-top: 4px solid var(--accent);
+      border-radius: 10px;
+      padding: 1.25rem;
+    }
+    .card.frontend { --accent: var(--frontend); }
+    .card.backend  { --accent: var(--backend); }
+    .card.redis    { --accent: var(--redis); }
+    .card h3 { margin: 0 0 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+    .dot { width: 12px; height: 12px; border-radius: 50%; background: var(--accent); display: inline-block; }
+    .port-row { display: flex; justify-content: space-between; padding: 0.35rem 0; border-bottom: 1px dashed var(--border); }
+    .port-row:last-child { border-bottom: none; }
+    .port-row .label { color: var(--muted); }
+    .port-row .val { font-family: "Cascadia Code", Consolas, monospace; }
+    table { width: 100%; border-collapse: collapse; margin-top: 1rem; font-size: 0.92rem; }
+    th, td { text-align: left; padding: 0.6rem 0.75rem; border: 1px solid var(--border); }
+    th { background: #0b1220; color: var(--muted); font-weight: 600; }
+    td code { white-space: nowrap; }
+    .diagram {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1.25rem;
+      margin-top: 1.5rem;
+      overflow-x: auto;
+    }
+    pre { margin: 0; font-family: "Cascadia Code", Consolas, monospace; font-size: 0.85rem; color: #cbd5e1; }
+    .note {
+      background: #0b1220;
+      border-left: 4px solid var(--backend);
+      padding: 0.85rem 1rem;
+      border-radius: 6px;
+      margin-top: 1.25rem;
+      color: var(--muted);
+    }
+    .note strong { color: var(--text); }
+    .badge {
+      display: inline-block; font-size: 0.72rem; padding: 0.1rem 0.5rem;
+      border-radius: 999px; background: #0b1220; border: 1px solid var(--border);
+      color: var(--muted); margin-left: 0.4rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <h1>Port Reference</h1>
+    <p class="sub">Frontend (Streamlit) · Backend (FastAPI) · Redis — local Docker &amp; Kubernetes (EKS)</p>
+
+    <!-- Quick cards -->
+    <div class="cards">
+      <div class="card frontend">
+        <h3><span class="dot"></span> Frontend <span class="badge">Streamlit</span></h3>
+        <div class="port-row"><span class="label">Container port</span><span class="val">8501</span></div>
+        <div class="port-row"><span class="label">Compose host</span><span class="val">8501 → 8501</span></div>
+        <div class="port-row"><span class="label">K8s Service</span><span class="val">80 → 8501</span></div>
+        <div class="port-row"><span class="label">Service type</span><span class="val">LoadBalancer</span></div>
+      </div>
+      <div class="card backend">
+        <h3><span class="dot"></span> Backend <span class="badge">FastAPI</span></h3>
+        <div class="port-row"><span class="label">Container port</span><span class="val">8000</span></div>
+        <div class="port-row"><span class="label">Compose host</span><span class="val">8000 → 8000</span></div>
+        <div class="port-row"><span class="label">K8s Service</span><span class="val">8000 → 8000</span></div>
+        <div class="port-row"><span class="label">Service type</span><span class="val">ClusterIP</span></div>
+      </div>
+      <div class="card redis">
+        <h3><span class="dot"></span> Redis <span class="badge">Cache</span></h3>
+        <div class="port-row"><span class="label">Container port</span><span class="val">6379</span></div>
+        <div class="port-row"><span class="label">Compose host</span><span class="val">6379 → 6379</span></div>
+        <div class="port-row"><span class="label">K8s Service</span><span class="val">6379 → 6379</span></div>
+        <div class="port-row"><span class="label">Service type</span><span class="val">ClusterIP</span></div>
+      </div>
+    </div>
+
+    <!-- Traffic flow -->
+    <h2>How traffic flows</h2>
+    <div class="diagram">
+<pre>
+Internet
+   │
+   ▼
+[ LoadBalancer Service :80 ]            (frontend Service, public)
+   │  forwards to targetPort 8501
+   ▼
+frontend Pod  (Streamlit, :8501)
+   │  BACKEND_URL = http://backend:8000
+   ▼
+[ backend Service :8000 ]              (ClusterIP, in-cluster only)
+   │  forwards to targetPort 8000
+   ▼
+backend Pod  (FastAPI, :8000)
+   │  REDIS_URL = redis://redis:6379/0
+   ▼
+[ redis Service :6379 ]                (ClusterIP, in-cluster only)
+   │
+   ▼
+redis Pod  (:6379)  ──►  PVC /data  (persistent cache)
+</pre>
+    </div>
+
+    <!-- Detailed table -->
+    <h2>Kubernetes port details</h2>
+    <p>In Kubernetes a <code>Service</code> has up to three port fields. Knowing the difference is the key to understanding the table below:</p>
+    <ul>
+      <li><code>port</code> — the port the <strong>Service</strong> listens on (what other pods call).</li>
+      <li><code>targetPort</code> — the <strong>container</strong> port traffic is forwarded to.</li>
+      <li><code>nodePort</code> — only for <code>NodePort</code>/<code>LoadBalancer</code>; the port opened on every node (auto-assigned 30000–32767 unless set).</li>
+    </ul>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Component</th>
+          <th>Service type</th>
+          <th>Service <code>port</code></th>
+          <th><code>targetPort</code> (container)</th>
+          <th>DNS name (in-cluster)</th>
+          <th>Reachable from</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Frontend</td>
+          <td>LoadBalancer</td>
+          <td><code>80</code></td>
+          <td><code>8501</code></td>
+          <td><code>frontend.langgraph-app.svc.cluster.local</code></td>
+          <td>Internet (via ELB external IP)</td>
+        </tr>
+        <tr>
+          <td>Backend</td>
+          <td>ClusterIP</td>
+          <td><code>8000</code></td>
+          <td><code>8000</code></td>
+          <td><code>backend.langgraph-app.svc.cluster.local</code></td>
+          <td>Inside cluster only</td>
+        </tr>
+        <tr>
+          <td>Redis</td>
+          <td>ClusterIP</td>
+          <td><code>6379</code></td>
+          <td><code>6379</code></td>
+          <td><code>redis.langgraph-app.svc.cluster.local</code></td>
+          <td>Inside cluster only</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="note">
+      <strong>Why the frontend Service uses port 80 → 8501:</strong> the public LoadBalancer exposes
+      standard HTTP port <code>80</code> to users, then forwards to the Streamlit container which
+      actually listens on <code>8501</code>. Backend and Redis keep the same number on both sides
+      because nothing external talks to them.
+    </div>
+
+    <div class="note">
+      <strong>Service discovery:</strong> pods reach each other by Service <em>name</em>, not IP.
+      Within the <code>langgraph-app</code> namespace, <code>http://backend:8000</code> and
+      <code>redis://redis:6379/0</code> resolve automatically via Kubernetes DNS — which is exactly
+      what <code>BACKEND_URL</code> and <code>REDIS_URL</code> are set to.
+    </div>
+
+    <!-- Manifest snippets -->
+    <h2>Where these are defined</h2>
+    <table>
+      <thead>
+        <tr><th>Port / setting</th><th>Defined in</th></tr>
+      </thead>
+      <tbody>
+        <tr><td>Frontend container <code>8501</code></td><td><code>frontend/Dockerfile</code> (EXPOSE) &amp; <code>k8-deployment/04-frontend.yaml</code></td></tr>
+        <tr><td>Backend container <code>8000</code></td><td><code>backend/Dockerfile</code> (EXPOSE) &amp; <code>k8-deployment/03-backend.yaml</code></td></tr>
+        <tr><td>Redis container <code>6379</code></td><td><code>k8-deployment/02-redis.yaml</code></td></tr>
+        <tr><td><code>BACKEND_URL=http://backend:8000</code></td><td><code>k8-deployment/04-frontend.yaml</code> env</td></tr>
+        <tr><td><code>REDIS_URL=redis://redis:6379/0</code></td><td><code>k8-deployment/03-backend.yaml</code> env</td></tr>
+      </tbody>
+    </table>
+
+    <!-- Resource requests / limits -->
+    <h2>CPU &amp; memory (requests / limits)</h2>
+    <p>The Kubernetes scheduler places pods based on <strong>requests</strong>. <strong>Limits</strong> only
+       matter if every pod bursts at once.</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Component</th>
+          <th>Replicas</th>
+          <th>CPU request</th>
+          <th>Mem request</th>
+          <th>CPU limit</th>
+          <th>Mem limit</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Frontend</td>
+          <td>2</td>
+          <td><code>100m</code> ea</td>
+          <td><code>256Mi</code> ea</td>
+          <td><code>500m</code> ea</td>
+          <td><code>512Mi</code> ea</td>
+        </tr>
+        <tr>
+          <td>Backend</td>
+          <td>2</td>
+          <td><code>100m</code> ea</td>
+          <td><code>256Mi</code> ea</td>
+          <td><code>500m</code> ea</td>
+          <td><code>512Mi</code> ea</td>
+        </tr>
+        <tr>
+          <td>Redis</td>
+          <td>1</td>
+          <td><code>50m</code></td>
+          <td><code>64Mi</code></td>
+          <td><code>250m</code></td>
+          <td><code>256Mi</code></td>
+        </tr>
+        <tr>
+          <td><strong>Totals</strong></td>
+          <td><strong>5 pods</strong></td>
+          <td><strong>450m</strong></td>
+          <td><strong>~1.06 GiB</strong></td>
+          <td><strong>2.25 vCPU</strong></td>
+          <td><strong>~2.25 GiB</strong></td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="note">
+      <strong>Node sizing:</strong> these requests (450m CPU / ~1.06 GiB) fit comfortably on
+      <code>t3.medium &times; 2</code> after EKS system overhead (kube-proxy, VPC CNI, CoreDNS, EBS CSI).
+      Increase node size or replica counts only if you raise the per-pod limits or add more replicas.
+      Defined in <code>k8-deployment/02-redis.yaml</code>, <code>03-backend.yaml</code>, and
+      <code>04-frontend.yaml</code>.
+    </div>
+
+    <!-- ============ LIVE CLUSTER SNAPSHOT ============ -->
+    <h2>Live cluster snapshot</h2>
+    <p>Captured from the running EKS Auto Mode cluster (<code>kousik_cluster</code>, region
+       <code>ap-south-2</code>, Kubernetes <code>v1.36</code>, Bottlerocket nodes). Numbers are a
+       point-in-time reading.</p>
+
+    <table>
+      <thead>
+        <tr>
+          <th>Metric</th>
+          <th>Value</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td>Worker nodes</td><td><code>3</code> (each 2 vCPU, ~3.7 GiB)</td></tr>
+        <tr><td>App pods (<code>langgraph-app</code>)</td><td><code>5</code> — 2 frontend, 2 backend, 1 redis</td></tr>
+        <tr><td>System pods (<code>kube-system</code>)</td><td><code>4</code> — 2 ebs-csi-controller, 2 metrics-server</td></tr>
+        <tr><td>Total pods</td><td><code>9</code></td></tr>
+        <tr><td>Max pods per node (allocatable)</td><td><code>27</code></td></tr>
+      </tbody>
+    </table>
+
+    <h2>Pods per node</h2>
+    <p>EKS Auto Mode bin-packed all five app pods onto a single node; system pods sit on the other two.</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Node</th>
+          <th>Pods on it</th>
+          <th>What runs there</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><code>i-0785aa3c431456a0d</code></td>
+          <td><code>5</code></td>
+          <td>frontend &times;2, backend &times;2, redis &times;1 (all app pods)</td>
+        </tr>
+        <tr>
+          <td><code>i-07ec3e618b8a9f3f4</code></td>
+          <td><code>3</code></td>
+          <td>ebs-csi-controller &times;2, metrics-server &times;1</td>
+        </tr>
+        <tr>
+          <td><code>i-0f19d097c21b16898</code></td>
+          <td><code>1</code></td>
+          <td>metrics-server &times;1</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- ============ UTILIZATION ============ -->
+    <h2>Node utilization (live)</h2>
+    <p>Each node: capacity <code>2 vCPU / ~3.7 GiB</code>; allocatable <code>1780m CPU / ~3.0 GiB</code>
+       (the rest is reserved for the kubelet and system daemons).</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Node</th>
+          <th>CPU used</th>
+          <th>CPU %</th>
+          <th>Memory used</th>
+          <th>Memory %</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><code>i-0785aa3c431456a0d</code> (app node)</td><td><code>31m</code></td><td>1%</td><td><code>684Mi</code></td><td>22%</td></tr>
+        <tr><td><code>i-07ec3e618b8a9f3f4</code></td><td><code>28m</code></td><td>1%</td><td><code>502Mi</code></td><td>16%</td></tr>
+        <tr><td><code>i-0f19d097c21b16898</code></td><td><code>21m</code></td><td>1%</td><td><code>323Mi</code></td><td>10%</td></tr>
+      </tbody>
+    </table>
+
+    <h2>Pod utilization (live)</h2>
+    <p>Actual usage is far below the requests/limits — this app is light at idle, so there is lots of headroom.</p>
+    <table>
+      <thead>
+        <tr>
+          <th>Pod</th>
+          <th>CPU used</th>
+          <th>Memory used</th>
+          <th>vs request</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr><td><code>backend</code> (566vw)</td><td><code>1m</code></td><td><code>72Mi</code></td><td>well under 100m / 256Mi</td></tr>
+        <tr><td><code>backend</code> (tsfzr)</td><td><code>1m</code></td><td><code>74Mi</code></td><td>well under 100m / 256Mi</td></tr>
+        <tr><td><code>frontend</code> (7cq2j)</td><td><code>3m</code></td><td><code>54Mi</code></td><td>well under 100m / 256Mi</td></tr>
+        <tr><td><code>frontend</code> (jmp4q)</td><td><code>3m</code></td><td><code>48Mi</code></td><td>well under 100m / 256Mi</td></tr>
+        <tr><td><code>redis</code> (9tccx)</td><td><code>4m</code></td><td><code>3Mi</code></td><td>well under 50m / 64Mi</td></tr>
+      </tbody>
+    </table>
+
+    <div class="note">
+      <strong>How these numbers are collected:</strong> the <code>metrics-server</code> pods (in
+      <code>kube-system</code>) aggregate per-pod and per-node usage. Read them with
+      <code>kubectl top nodes</code> and <code>kubectl top pods -n langgraph-app</code>.
+    </div>
+
+    <!-- ============ SCALING ============ -->
+    <h2>Scaling: vertical vs horizontal</h2>
+    <p>Two independent axes. <strong>Horizontal</strong> = more pods; <strong>vertical</strong> = bigger pods
+       (or bigger nodes).</p>
+
+    <h3 style="margin-top:1.5rem">Horizontal scaling (more replicas)</h3>
+    <p>Add more identical pods behind the same Service. Best for stateless tiers (frontend, backend).</p>
+    <div class="diagram">
+<pre>
+# Manual: change replica count
+kubectl scale deployment/backend  --replicas=4 -n langgraph-app
+kubectl scale deployment/frontend --replicas=4 -n langgraph-app
+
+# Automatic: Horizontal Pod Autoscaler (uses metrics-server, already installed)
+kubectl autoscale deployment backend  --cpu-percent=70 --min=2 --max=6 -n langgraph-app
+kubectl autoscale deployment frontend --cpu-percent=70 --min=2 --max=6 -n langgraph-app
+kubectl get hpa -n langgraph-app
+</pre>
+    </div>
+    <div class="note">
+      Do <strong>not</strong> horizontally scale <code>redis</code> here — it is a single-writer cache backed by
+      one <code>ReadWriteOnce</code> EBS volume. More replicas would each want their own volume and would not
+      share cache state. Use Redis replication / a managed service (ElastiCache) if you need HA Redis.
+    </div>
+
+    <h3 style="margin-top:1.5rem">Vertical scaling (bigger pods / nodes)</h3>
+    <p>Give each pod more CPU/memory, or use larger nodes.</p>
+    <div class="diagram">
+<pre>
+# Per-pod: raise requests/limits in the manifest, then re-apply
+#   k8-deployment/03-backend.yaml
+resources:
+  requests: { cpu: "250m", memory: "512Mi" }
+  limits:   { cpu: "1",    memory: "1Gi"  }
+
+kubectl apply -k k8-deployment      # rolls pods with the new sizes
+
+# Per-node (EKS Auto Mode): the cluster auto-provisions right-sized nodes.
+# On a managed node group instead, swap the instance type (e.g. t3.large) or
+# add nodes so larger pods can be scheduled.
+</pre>
+    </div>
+
+    <h3 style="margin-top:1.5rem">Cluster / node scaling</h3>
+    <p>On <strong>EKS Auto Mode</strong> (this cluster) node scaling is automatic — when pods cannot fit, Auto
+       Mode launches more/larger nodes and removes them when idle. No Cluster Autoscaler or node group to
+       manage. On a classic cluster you would scale a managed node group manually or with the Cluster
+       Autoscaler / Karpenter.</p>
+
+    <!-- ============ LOAD BALANCING ============ -->
+    <h2>Load balancing</h2>
+    <p>There are two layers of load balancing in this stack:</p>
+    <table>
+      <thead>
+        <tr><th>Layer</th><th>What balances</th><th>How</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>External (internet → frontend)</td>
+          <td>User traffic across the 2 frontend pods</td>
+          <td>AWS <strong>Network Load Balancer</strong>, provisioned by EKS Auto Mode via
+              <code>loadBalancerClass: eks.amazonaws.com/nlb</code>, targeting pod IPs directly
+              (<code>nlb-target-type: ip</code>)</td>
+        </tr>
+        <tr>
+          <td>Internal (frontend → backend)</td>
+          <td>Requests across the 2 backend pods</td>
+          <td>Kubernetes <code>ClusterIP</code> Service <code>backend</code> — kube-proxy spreads
+              connections across the backend Endpoints</td>
+        </tr>
+        <tr>
+          <td>Internal (backend → redis)</td>
+          <td>Single redis pod</td>
+          <td><code>ClusterIP</code> Service <code>redis</code> (one endpoint; no balancing needed)</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="note">
+      <strong>Why an NLB and not a Classic ELB:</strong> on EKS Auto Mode a plain <code>type: LoadBalancer</code>
+      falls back to a Classic ELB that registers nodes as targets — which Auto Mode does not wire up, so it
+      times out. The <code>eks.amazonaws.com/nlb</code> class makes Auto Mode's own controller build a public
+      NLB that points straight at the frontend pod IPs. See <code>k8-deployment/04-frontend.yaml</code>.
+    </div>
+
+    <!-- ============ ARCHITECTURE ============ -->
+    <h2>Architecture &amp; data flow</h2>
+    <div class="diagram">
+<pre>
+                            Internet (users)
+                                  │
+                                  ▼
+                 ┌────────────────────────────────────┐
+                 │   AWS Network Load Balancer (NLB)   │  internet-facing, port 80
+                 │   provisioned by EKS Auto Mode      │  health check /_stcore/health
+                 └────────────────────────────────────┘
+                                  │  targets pod IPs :8501
+              ┌───────────────────┴───────────────────┐
+              ▼                                        ▼
+      frontend Pod (Streamlit)              frontend Pod (Streamlit)     [Deployment, 2 replicas]
+              │           BACKEND_URL = http://backend:8000
+              └───────────────────┬───────────────────┘
+                                  ▼
+                      ┌───────────────────────┐
+                      │ backend Service (CIP)  │  :8000  kube-proxy load balances
+                      └───────────────────────┘
+              ┌───────────────────┴───────────────────┐
+              ▼                                        ▼
+       backend Pod (FastAPI)                  backend Pod (FastAPI)      [Deployment, 2 replicas]
+              │           REDIS_URL = redis://redis:6379/0
+              └───────────────────┬───────────────────┘
+                                  ▼
+                      ┌───────────────────────┐
+                      │ redis Service (CIP)    │  :6379
+                      └───────────────────────┘
+                                  ▼
+                       redis Pod (cache)  ──►  PVC redis-data (1Gi)
+                                                   │
+                                                   ▼
+                                       Amazon EBS volume (gp3, encrypted)
+                                       provisioner ebs.csi.eks.amazonaws.com
+</pre>
+    </div>
+
+    <h2>Where the data is stored</h2>
+    <table>
+      <thead>
+        <tr><th>Data</th><th>Stored in</th><th>Persistence</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Redis cache (LLM responses)</td>
+          <td>Redis in-memory, persisted to <code>/data</code> via AOF onto an <strong>Amazon EBS</strong>
+              volume bound by the <code>redis-data</code> PVC</td>
+          <td>Survives pod restarts (volume re-attaches). 24h TTL per key (<code>CACHE_TTL_SECONDS</code>).</td>
+        </tr>
+        <tr>
+          <td>Frontend chat history</td>
+          <td>Streamlit <code>st.session_state</code> — browser session only</td>
+          <td>Ephemeral; lost on refresh / new session</td>
+        </tr>
+        <tr>
+          <td>Backend / frontend app code</td>
+          <td>Container image layers (read-only)</td>
+          <td>Immutable; no app-written state on the pod filesystem</td>
+        </tr>
+        <tr>
+          <td>Secrets (API key)</td>
+          <td>Kubernetes <code>Secret</code> in etcd (see below)</td>
+          <td>Cluster-lifetime</td>
+        </tr>
+      </tbody>
+    </table>
+    <div class="note">
+      Only <strong>Redis</strong> has durable storage (the EBS-backed PVC). Frontend and backend are
+      <strong>stateless</strong>, which is exactly why they can be horizontally scaled freely while Redis stays
+      a single replica.
+    </div>
+
+    <!-- ============ SECRETS ============ -->
+    <h2>How the <code>.env</code> / secrets are processed</h2>
+    <p>The same <code>.env</code> is consumed <strong>differently</strong> depending on where the app runs.
+       In both cases the file itself is gitignored and never committed.</p>
+
+    <table>
+      <thead>
+        <tr><th>Environment</th><th>Mechanism</th><th>How the key reaches the app</th></tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td><strong>Local / Docker Compose</strong></td>
+          <td>Docker reads <code>.env</code></td>
+          <td><code>docker-compose.yml</code> has <code>env_file: .env</code> on the backend service →
+              Docker injects each line as a container environment variable at startup.</td>
+        </tr>
+        <tr>
+          <td><strong>Kubernetes (EKS)</strong></td>
+          <td>Kubernetes <code>Secret</code></td>
+          <td><code>kubectl create secret generic backend-secrets --from-env-file=.env</code> turns the file
+              into a Secret stored in etcd. The backend Deployment maps it in via
+              <code>secretKeyRef</code> (<code>GROQ_API_KEY</code>) so the pod sees it as an env var.</td>
+        </tr>
+      </tbody>
+    </table>
+
+    <div class="diagram">
+<pre>
+DOCKER COMPOSE                          KUBERNETES (EKS)
+──────────────                          ────────────────
+.env  ──env_file──►  backend            .env ──from-env-file──►  Secret "backend-secrets" (etcd)
+container env                                                         │ secretKeyRef
+                                                            backend Pod env  GROQ_API_KEY
+
+App code is identical: utils/llm_call.py just reads os.environ["GROQ_API_KEY"].
+</pre>
+    </div>
+
+    <div class="note">
+      <strong>So: it is Docker locally, Kubernetes in the cluster.</strong> The application code does not know
+      the difference — it only reads environment variables. Docker handles injection from <code>.env</code> on
+      your machine; in EKS a Kubernetes <code>Secret</code> does it. Note Kubernetes Secrets are only
+      base64-encoded in etcd by default; for stronger protection enable envelope encryption (KMS) or use the
+      External Secrets Operator / AWS Secrets Manager. The plaintext key only ever lives in the gitignored
+      <code>.env</code> — see <code>k8-deployment/01-backend-secret.example.yaml</code> for the template.
+    </div>
+
+    <div class="note">
+      <strong>Local vs Kubernetes:</strong> with <code>docker compose</code> all three ports are published
+      to <code>localhost</code> (8501 / 8000 / 6379). In Kubernetes only the frontend is public; the
+      backend and Redis stay internal (ClusterIP). To reach an internal service while debugging, use
+      <code>kubectl port-forward svc/backend 8000:8000 -n langgraph-app</code>.
+    </div>
+  </div>
+</body>
+</html>
