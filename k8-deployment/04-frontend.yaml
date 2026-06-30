@@ -1,0 +1,73 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: langgraph-app
+  labels:
+    app: frontend
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: frontend
+  template:
+    metadata:
+      labels:
+        app: frontend
+    spec:
+      containers:
+        - name: frontend
+          # Replace <ACCOUNT_ID>/<REGION> or use your registry path.
+          image: 932566365205.dkr.ecr.ap-south-2.amazonaws.com/frontend:v1
+          ports:
+            - containerPort: 8501
+              name: http
+          env:
+            - name: BACKEND_URL
+              value: "http://backend:8000"
+          resources:
+            requests:
+              cpu: "100m"
+              memory: "256Mi"
+            limits:
+              cpu: "500m"
+              memory: "512Mi"
+          readinessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: 8501
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /_stcore/health
+              port: 8501
+            initialDelaySeconds: 20
+            periodSeconds: 20
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: frontend
+  namespace: langgraph-app
+  labels:
+    app: frontend
+  annotations:
+    # EKS Auto Mode: provision an internet-facing NLB that targets pod IPs.
+    # A plain type: LoadBalancer without these is NOT served by Auto Mode and
+    # times out, so these annotations + loadBalancerClass below are required.
+    service.beta.kubernetes.io/aws-load-balancer-scheme: "internet-facing"
+    service.beta.kubernetes.io/aws-load-balancer-nlb-target-type: "ip"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-path: "/_stcore/health"
+    service.beta.kubernetes.io/aws-load-balancer-healthcheck-port: "8501"
+spec:
+  type: LoadBalancer
+  # Auto Mode's built-in load balancer controller handles this class.
+  loadBalancerClass: eks.amazonaws.com/nlb
+  selector:
+    app: frontend
+  ports:
+    - port: 80
+      targetPort: 8501
+      name: http
+
